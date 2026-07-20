@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 CLAUDE.md
+
+# 실습2 실행 산출물 (재생성됨)
+practice2/valid_records.csv
+practice2/errors.json
