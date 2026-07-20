@@ -13,12 +13,14 @@
 
 변경 내역 (Changelog)
     v1.0 (2026-07-20) 최초 작성 - 3개 모델 정상/오류 검증 테스트
+    v1.1 (2026-07-20) validate_all 파이프라인 레벨 예외 처리 테스트 추가
 =============================================================================
 """
 
 import pytest
 from pydantic import ValidationError
 
+from main import validate_all
 from models import CountryInfo, IpInfo, WeatherForecast, WeatherHour
 
 
@@ -102,3 +104,15 @@ def test_country_population_must_be_positive(sample_country):
 def test_ip_status_failure_raises():
     with pytest.raises(ValueError):
         IpInfo.from_api({"status": "fail", "message": "reserved range"})
+
+
+# --- 파이프라인 레벨 예외 처리 ------------------------------------------------
+def test_validate_all_handles_bad_record(sample_weather, sample_country, sample_ip):
+    """한 API가 불량이어도 나머지는 통과하고 파이프라인이 죽지 않는다."""
+    bad_country = {**sample_country, "population": -5}  # 인구 음수 → 검증 실패
+    raw = {"weather": sample_weather, "country": bad_country, "ip": sample_ip}
+
+    forecast, country, ip = validate_all(raw)
+
+    assert forecast is not None and ip is not None  # 정상 데이터는 통과
+    assert country is None  # 불량 데이터만 걸러짐 (예외 처리로 None)
