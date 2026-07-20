@@ -10,3 +10,7 @@ practice2/errors.json
 
 # Day1 종합 실행 산출물 (재생성됨)
 practice_day1/output/
+
+# 제출용 압축 파일 · 도구 캐시
+*.zip
+.ruff_cache/
