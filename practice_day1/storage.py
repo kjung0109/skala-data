@@ -9,6 +9,8 @@
     시간이 매우 짧으므로 repeat 회 반복 측정 후 평균을 사용한다.
 
 함수 구성 (파라미터 · 기능)
+    save_both(df, csv_path, parquet_path) -> None
+        df 를 CSV·Parquet 두 형식으로 저장 (성능 측정 없이).
     save_and_compare(df, csv_path, parquet_path, repeat=100) -> dict
         df 를 CSV·Parquet 로 저장하고 형식별 쓰기/읽기 평균시간·파일크기를 측정해 반환.
     print_comparison(metrics: dict, rows: int) -> None
@@ -47,6 +49,12 @@ def _bench(writer: Callable, reader: Callable, path: Path, repeat: int) -> dict:
         "read_ms": _measure(reader, repeat) * 1000,
         "size_kb": path.stat().st_size / 1024,
     }
+
+
+def save_both(df: pd.DataFrame, csv_path: str | Path, parquet_path: str | Path) -> None:
+    """df 를 CSV·Parquet 두 형식으로 저장한다 (성능 측정 없이)."""
+    df.to_csv(csv_path, index=False)
+    df.to_parquet(parquet_path, index=False)
 
 
 def save_and_compare(
