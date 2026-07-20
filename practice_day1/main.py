@@ -7,8 +7,7 @@
     수집(collect) → 검증(models) → 저장·성능비교(storage) 를 순서대로 실행한다.
       1) asyncio 로 3개 API 동시 수집
       2) Pydantic 모델로 타입·범위 검증 (실패 시 예외 처리)
-      3) 검증 통과한 3종 데이터를 각각 CSV·Parquet 두 형식으로 저장
-      4) 대표 데이터(날씨 72행)로 읽기/쓰기 성능 비교 결과 출력
+      3) 검증 통과한 3종 데이터를 각각 CSV·Parquet 저장 + 읽기/쓰기 성능 비교
 
 함수 구성 (파라미터 · 기능)
     build_weather_df(forecast: WeatherForecast) -> pd.DataFrame
@@ -37,7 +36,7 @@ from pydantic import ValidationError
 
 from collect import collect_all
 from models import CountryInfo, IpInfo, WeatherForecast
-from storage import print_comparison, save_and_compare, save_both
+from storage import print_comparison, save_and_compare
 
 BASE = Path(__file__).resolve().parent
 OUTPUT = BASE / "output"
@@ -90,18 +89,12 @@ def run_pipeline(raw: dict) -> None:
     print("\n[2] 스키마 검증")
     forecast, country, ip = validate_all(raw)
 
-    # [3] 검증 통과한 데이터 3종을 각각 CSV·Parquet 두 형식으로 저장
-    print("\n[3] CSV·Parquet 저장")
+    # [3] 검증 통과한 3종 데이터를 각각 CSV·Parquet 저장 + 성능 비교
+    print("\n[3] CSV·Parquet 저장 및 성능 비교")
     frames = to_frames(forecast, country, ip)
     for name, df in frames.items():
-        save_both(df, OUTPUT / f"{name}.csv", OUTPUT / f"{name}.parquet")
-        print(f"  [OK] {name}: {len(df)}행 → {name}.csv / {name}.parquet")
-
-    # [4] 대표 데이터(날씨)로 읽기/쓰기 성능 비교
-    if "weather" in frames:
-        df = frames["weather"]
-        metrics = save_and_compare(df, OUTPUT / "weather.csv", OUTPUT / "weather.parquet")
-        print_comparison(metrics, len(df))
+        metrics = save_and_compare(df, OUTPUT / f"{name}.csv", OUTPUT / f"{name}.parquet")
+        print_comparison(name, metrics, len(df))
 
     print(f"\n[OK] 파이프라인 완료 → 결과: {OUTPUT}")
 

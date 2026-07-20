@@ -9,12 +9,10 @@
     시간이 매우 짧으므로 repeat 회 반복 측정 후 평균을 사용한다.
 
 함수 구성 (파라미터 · 기능)
-    save_both(df, csv_path, parquet_path) -> None
-        df 를 CSV·Parquet 두 형식으로 저장 (성능 측정 없이).
     save_and_compare(df, csv_path, parquet_path, repeat=100) -> dict
         df 를 CSV·Parquet 로 저장하고 형식별 쓰기/읽기 평균시간·파일크기를 측정해 반환.
-    print_comparison(metrics: dict, rows: int) -> None
-        측정 결과를 표 형태로 출력.
+    print_comparison(name: str, metrics: dict, rows: int) -> None
+        데이터셋 이름과 함께 측정 결과를 표 형태로 출력.
 
 변경 내역 (Changelog)
     v1.0 (2026-07-20) 최초 작성 - CSV/Parquet 저장 및 성능 비교
@@ -51,12 +49,6 @@ def _bench(writer: Callable, reader: Callable, path: Path, repeat: int) -> dict:
     }
 
 
-def save_both(df: pd.DataFrame, csv_path: str | Path, parquet_path: str | Path) -> None:
-    """df 를 CSV·Parquet 두 형식으로 저장한다 (성능 측정 없이)."""
-    df.to_csv(csv_path, index=False)
-    df.to_parquet(parquet_path, index=False)
-
-
 def save_and_compare(
     df: pd.DataFrame,
     csv_path: str | Path,
@@ -81,9 +73,9 @@ def save_and_compare(
     }
 
 
-def print_comparison(metrics: dict, rows: int) -> None:
-    """저장 성능 측정 결과를 표로 출력한다."""
-    print(f"\n[저장·성능 비교] {rows}행 기준 (평균)")
+def print_comparison(name: str, metrics: dict, rows: int) -> None:
+    """데이터셋 이름과 함께 저장 성능 측정 결과를 표로 출력한다."""
+    print(f"\n[{name}] 저장·성능 비교 — {rows}행 (평균)")
     print(f"  {'형식':<8}{'쓰기(ms)':>12}{'읽기(ms)':>12}{'크기(KB)':>12}")
     for fmt, m in metrics.items():
         print(
