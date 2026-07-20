@@ -58,7 +58,9 @@ def _safe(label: str, fn) -> object | None:
     return obj
 
 
-def validate_all(raw: dict) -> tuple:
+def validate_all(
+    raw: dict,
+) -> tuple[WeatherForecast | None, CountryInfo | None, IpInfo | None]:
     """수집 raw 를 각 Pydantic 모델로 검증한다 (개별 예외 처리, 실패 시 None)."""
     forecast = _safe("weather", lambda: WeatherForecast.from_api(raw["weather"]))
     country = _safe("country", lambda: CountryInfo.from_api(raw["country"]))

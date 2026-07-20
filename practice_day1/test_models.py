@@ -14,12 +14,17 @@
 변경 내역 (Changelog)
     v1.0 (2026-07-20) 최초 작성 - 3개 모델 정상/오류 검증 테스트
     v1.1 (2026-07-20) validate_all 파이프라인 레벨 예외 처리 테스트 추가
+    v1.2 (2026-07-20) fetch_json 재시도(백오프) 테스트 추가
 =============================================================================
 """
 
+import asyncio
+
+import httpx
 import pytest
 from pydantic import ValidationError
 
+from collect import fetch_json
 from main import validate_all
 from models import CountryInfo, IpInfo, WeatherForecast, WeatherHour
 
@@ -116,3 +121,24 @@ def test_validate_all_handles_bad_record(sample_weather, sample_country, sample_
 
     assert forecast is not None and ip is not None  # 정상 데이터는 통과
     assert country is None  # 불량 데이터만 걸러짐 (예외 처리로 None)
+
+
+# --- 수집 재시도(백오프) -----------------------------------------------------
+def test_fetch_json_retries_transient_error():
+    """일시적 5xx 오류는 재시도 후 성공한다 (네트워크 없이 MockTransport)."""
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] < 2:
+            return httpx.Response(503)  # 첫 시도: 일시적 오류
+        return httpx.Response(200, json={"ok": True})
+
+    async def run() -> tuple[str, dict | None]:
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport) as client:
+            return await fetch_json(client, "test", "http://x", retries=2, backoff=0)
+
+    name, data = asyncio.run(run())
+    assert data == {"ok": True}
+    assert calls["n"] == 2  # 1회 실패 + 1회 성공(재시도 동작 확인)
