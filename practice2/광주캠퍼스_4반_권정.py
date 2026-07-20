@@ -19,11 +19,32 @@
     또한 원본은 모두 정상 데이터라 검증 실패가 없으므로, valid/errors 분리와
     ValidationError 출력을 시연하기 위해 DIRTY_SAMPLES 를 원본 뒤에 덧붙인다.
 
+함수 구성 (파라미터 · 기능)
+    SalesRecord(BaseModel)
+        month·region 필수(min_length=1), amount>0, category 선택인 검증 스키마.
+    find_data_file(name: str) -> Path | None
+        스크립트 폴더 → 상위 폴더 순으로 데이터 파일을 탐색.
+    load_raw_data(name: str) -> list[dict]
+        원본을 JSON 으로 로드, 실패 시 Python 리터럴로 폴백 파싱.
+    validate_records(raw: list[dict]) -> tuple[list[SalesRecord], list[dict]]
+        raw 를 SalesRecord 로 검증해 valid / errors({row, error}) 로 분리.
+    save_valid_csv(records: list[SalesRecord], path: Path) -> None
+        valid 레코드를 model_dump 로 CSV 저장.
+    save_errors_json(errors: list[dict], path: Path) -> None
+        errors 를 JSON 저장 (ensure_ascii=False 로 한글 보존).
+    safe_load_csv(path: str | Path) -> list[dict] | None
+        CSV 안전 로드. 파일 없으면 None, 성공 시 dict 리스트, finally 로깅.
+    report_errors(errors: list[dict]) -> None
+        검증 실패 내역(행·사유)을 출력.
+    main() -> None
+        로드 → 검증 → 저장(CSV/JSON) → 재로딩 검증을 순서대로 실행.
+
 제출
     광주캠퍼스_4반_권정.py
 
 변경 내역 (Changelog)
     v1.0 (2026-07-20) 최초 작성 - 실습2 요구사항 1~4 및 체크포인트 구현
+    v1.1 (2026-07-20) 머리말에 '함수 구성'(파라미터·기능) 요약 추가
 =============================================================================
 """
 
@@ -66,12 +87,7 @@ def find_data_file(name: str) -> Path | None:
 
 
 def load_raw_data(name: str) -> list[dict]:
-    """원본 Sales 데이터를 로드한다.
-
-    - 1차: 표준 JSON 파싱 시도
-    - 2차: JSON 이 아니면(`sales = [...]` 형태) '[' 부터 Python 리터럴로 안전 파싱
-    - 실패/부재 시: logger.error 후 빈 리스트 반환
-    """
+    """원본 Sales 데이터를 로드한다 (JSON 실패 시 Python 리터럴로 폴백)."""
     path = find_data_file(name)
     if path is None:
         logger.error("원본 데이터 없음: %s", name)
@@ -118,12 +134,7 @@ def save_errors_json(errors: list[dict], path: Path) -> None:
 
 
 def safe_load_csv(path: str | Path) -> list[dict] | None:
-    """CSV 를 안전하게 로드한다.
-
-    - 파일 없음 : logger.error 후 None 반환
-    - 성공      : logger.info 후 dict 리스트 반환
-    - 공통      : finally 에서 '로딩 종료' 출력
-    """
+    """CSV 를 안전하게 로드한다 (없으면 None, 성공 시 dict 리스트, finally 에서 '로딩 종료')."""
     try:
         with open(path, encoding="utf-8") as f:
             rows = list(csv.DictReader(f))
@@ -144,6 +155,7 @@ def report_errors(errors: list[dict]) -> None:
 
 
 def main() -> None:
+    """로드 → 검증 → 저장(CSV/JSON) → 재로딩 검증을 순서대로 실행한다."""
     raw = load_raw_data(SOURCE_JSON) + DIRTY_SAMPLES     # 원본 + 시연용 불량 레코드
     valid, errors = validate_records(raw)                # 검증 → valid/errors 분리
     logger.info("검증 결과 — valid: %d건 / errors: %d건", len(valid), len(errors))
