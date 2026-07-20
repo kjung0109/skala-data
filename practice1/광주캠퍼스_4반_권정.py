@@ -15,11 +15,32 @@
     로더가 이를 감지하면 Python_Practice2_Data.json 으로 자동 폴백한다.
     (두 파일 모두 동일 스키마: region, category, amount, month)
 
+함수 구성 (파라미터 · 기능)
+    load_sales_data(candidates: list[str]) -> list[dict]
+        후보 파일을 순서대로 시도해 처음 성공한 데이터를 반환 (모두 실패 시 RuntimeError).
+    filter_high_value(sales: list[dict], threshold: int = 1000) -> list[dict]
+        amount >= threshold 인 거래만 리스트 컴프리헨션으로 필터링.
+    region_total_sales(sales: list[dict]) -> dict[str, int]
+        지역별 총매출을 딕셔너리 컴프리헨션으로 계산 (지역명 → 합계).
+    count_by_region(sales: list[dict]) -> Counter
+        지역별 거래 '건수' 를 Counter 로 집계.
+    amounts_by_category(sales: list[dict]) -> defaultdict[str, list]
+        카테고리별 amount 리스트를 defaultdict 로 그룹핑.
+    gen_high_value(sales: list[dict], threshold: int = 1000) -> Iterator[dict]
+        amount > threshold 인 거래만 하나씩 yield 하는 제너레이터.
+    compare_memory(sales: list[dict], threshold: int = 1000) -> tuple[int, int]
+        제너레이터와 list 의 메모리 크기(bytes)를 비교해 (gen, list) 반환.
+    monthly_category_sales(sales: list[dict]) -> dict[str, int]
+        (month, category) 별 총매출을 집계 ('YYYY-MM|카테고리' → 합계).
+    main() -> None
+        로딩 → 집계(1~4) → 체크포인트 검증(assert)을 순서대로 실행.
+
 제출
     광주캠퍼스_4반_권정.py
 
 변경 내역 (Changelog)
     v1.0 (2026-07-20) 최초 작성 - 실습1 요구사항 1~4 및 체크포인트 구현
+    v1.1 (2026-07-20) 머리말에 '함수 구성'(파라미터·기능) 요약 추가
 =============================================================================
 """
 
@@ -37,12 +58,7 @@ HIGH_VALUE_THRESHOLD = 1000  # 고액 거래 기준 금액
 # 데이터 로딩 : 파일 부재 / JSON 파싱 오류를 처리하고 정상 파일로 폴백
 # ---------------------------------------------------------------------------
 def load_sales_data(candidates: list[str]) -> list[dict]:
-    """후보 파일들을 순서대로 시도해 처음으로 성공한 JSON(list)을 반환한다.
-
-    - FileNotFoundError : 파일이 없으면 다음 후보로 넘어간다.
-    - JSONDecodeError    : 파싱 실패 시(1번 파일 케이스) 다음 후보로 넘어간다.
-    - 모든 후보 실패 시    : RuntimeError 로 상위에 전파한다.
-    """
+    """후보 파일을 순서대로 시도해 처음 성공한 데이터를 반환한다 (모두 실패 시 RuntimeError)."""
     for name in candidates:
         path = Path(name)
         try:
@@ -70,15 +86,12 @@ def load_sales_data(candidates: list[str]) -> list[dict]:
 # 1) 리스트 / 딕셔너리 컴프리헨션
 # ---------------------------------------------------------------------------
 def filter_high_value(sales: list[dict], threshold: int = HIGH_VALUE_THRESHOLD) -> list[dict]:
-    """amount >= threshold 인 거래만 필터링 (리스트 컴프리헨션)."""
+    """amount >= threshold 인 거래만 필터링한다 (리스트 컴프리헨션)."""
     return [row for row in sales if row.get("amount", 0) >= threshold]
 
 
 def region_total_sales(sales: list[dict]) -> dict[str, int]:
-    """지역별 총매출 dict 를 딕셔너리 컴프리헨션으로 계산.
-
-    for 루프 누적 대신, 고유 지역 집합을 순회하는 컴프리헨션으로 합산한다.
-    """
+    """지역별 총매출 dict 를 딕셔너리 컴프리헨션으로 계산한다."""
     regions = {row["region"] for row in sales}  # 집합 컴프리헨션 (중복 제거)
     return {
         region: sum(row["amount"] for row in sales if row["region"] == region)
@@ -90,15 +103,12 @@ def region_total_sales(sales: list[dict]) -> dict[str, int]:
 # 2) Counter + defaultdict
 # ---------------------------------------------------------------------------
 def count_by_region(sales: list[dict]) -> Counter:
-    """지역별 거래 '건수' 를 Counter 로 집계 (직접 루프 카운팅 금지)."""
+    """지역별 거래 '건수' 를 Counter 로 집계한다 (직접 루프 카운팅 금지)."""
     return Counter(row["region"] for row in sales)
 
 
 def amounts_by_category(sales: list[dict]) -> defaultdict:
-    """카테고리별 amount 리스트를 defaultdict(list) 로 그룹핑.
-
-    'if key not in dict' 패턴 대신 defaultdict 로 키 자동 생성.
-    """
+    """카테고리별 amount 리스트를 defaultdict(list) 로 그룹핑한다."""
     grouped: defaultdict = defaultdict(list)
     for row in sales:
         grouped[row["category"]].append(row["amount"])
@@ -116,10 +126,9 @@ def gen_high_value(sales: list[dict], threshold: int = HIGH_VALUE_THRESHOLD):
 
 
 def compare_memory(sales: list[dict], threshold: int = HIGH_VALUE_THRESHOLD) -> tuple[int, int]:
-    """제너레이터 객체와 list 의 메모리 크기를 비교해 (gen_size, list_size) 반환.
+    """제너레이터와 list 의 메모리 크기(bytes)를 비교해 (gen_size, list_size) 반환한다.
 
-    주의: 측정 대상 제너레이터를 list 로 변환하지 않는다.
-    list 는 별도 컴프리헨션으로 독립 생성하여 공정하게 비교한다.
+    측정 대상 제너레이터를 list 로 변환하지 않고, list 는 별도로 독립 생성해 공정 비교.
     """
     gen_obj = gen_high_value(sales, threshold)                      # 미소비 제너레이터
     list_obj = [row for row in sales if row.get("amount", 0) > threshold]
@@ -130,8 +139,7 @@ def compare_memory(sales: list[dict], threshold: int = HIGH_VALUE_THRESHOLD) -> 
 # 4) 종합 : 월 · 카테고리별 총매출 집계
 # ---------------------------------------------------------------------------
 def monthly_category_sales(sales: list[dict]) -> dict[str, int]:
-    """(month, category) 조합별 총매출을 defaultdict 로 누적한 뒤
-    'YYYY-MM|카테고리' 키의 dict 로 정리(딕셔너리 컴프리헨션)한다."""
+    """(month, category) 조합별 총매출을 집계한 dict('YYYY-MM|카테고리' → 합계)를 반환한다."""
     totals: defaultdict = defaultdict(int)
     for row in sales:
         totals[(row["month"], row["category"])] += row["amount"]
@@ -146,6 +154,7 @@ def monthly_category_sales(sales: list[dict]) -> dict[str, int]:
 # 실행 엔트리포인트
 # ---------------------------------------------------------------------------
 def main() -> None:
+    """로딩 → 집계(1~4) → 체크포인트 검증(assert)을 순서대로 실행한다."""
     try:
         sales = load_sales_data(DATA_CANDIDATES)
     except RuntimeError as e:
